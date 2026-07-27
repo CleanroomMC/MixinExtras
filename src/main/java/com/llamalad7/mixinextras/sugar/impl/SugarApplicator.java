@@ -2,12 +2,12 @@ package com.llamalad7.mixinextras.sugar.impl;
 
 import com.llamalad7.mixinextras.injector.StackExtension;
 import com.llamalad7.mixinextras.service.MixinExtrasService;
+import com.llamalad7.mixinextras.service.MixinExtrasServiceImpl;
 import com.llamalad7.mixinextras.sugar.Cancellable;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.llamalad7.mixinextras.sugar.Share;
 import com.llamalad7.mixinextras.utils.ASMUtils;
 import com.llamalad7.mixinextras.utils.CompatibilityHelper;
-import org.apache.commons.lang3.tuple.Pair;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -15,28 +15,18 @@ import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
 import org.spongepowered.asm.mixin.injection.struct.InjectionNodes.InjectionNode;
 import org.spongepowered.asm.mixin.injection.struct.Target;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 abstract class SugarApplicator {
     private static final Map<String, Class<? extends SugarApplicator>> MAP = new HashMap<>();
 
     static {
-        List<Pair<Class<? extends Annotation>, Class<? extends SugarApplicator>>> sugars = Arrays.asList(
-                Pair.of(Cancellable.class, CancellableSugarApplicator.class),
-                Pair.of(Local.class, LocalSugarApplicator.class),
-                Pair.of(Share.class, ShareSugarApplicator.class)
-        );
-        for (Pair<Class<? extends Annotation>, Class<? extends SugarApplicator>> pair : sugars) {
-            for (String name : MixinExtrasService.getInstance().getAllClassNames(pair.getLeft().getName())) {
-                MAP.put('L' + name.replace('.', '/') + ';', pair.getRight());
-            }
-        }
+        MAP.put(Type.getDescriptor(Cancellable.class), CancellableSugarApplicator.class);
+        MAP.put(Type.getDescriptor(Local.class), LocalSugarApplicator.class);
+        MAP.put(Type.getDescriptor(Share.class), ShareSugarApplicator.class);
     }
 
     protected final IMixinInfo mixin;
@@ -74,7 +64,7 @@ abstract class SugarApplicator {
 
     static SugarApplicator create(InjectionInfo info, SugarParameter parameter) {
         try {
-            Class<? extends SugarApplicator> clazz = MAP.get(parameter.sugar.desc);
+            Class<? extends SugarApplicator> clazz = lookup(parameter.sugar.desc);
             Constructor<? extends SugarApplicator> ctor = clazz.getDeclaredConstructor(InjectionInfo.class, SugarParameter.class);
             return ctor.newInstance(info, parameter);
         } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
@@ -83,6 +73,15 @@ abstract class SugarApplicator {
     }
 
     static boolean isSugar(String desc) {
-        return MAP.containsKey(desc);
+        return lookup(desc) != null;
+    }
+
+    private static Class<? extends SugarApplicator> lookup(String desc) {
+        Class<? extends SugarApplicator> ours = MAP.get(desc);
+        if (ours != null) {
+            return ours;
+        }
+        String ourDesc = MixinExtrasService.getInstance().ourDescriptorFor(desc);
+        return ourDesc == null ? null : MAP.get(ourDesc);
     }
 }

@@ -9,7 +9,6 @@ import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethodInjectionInfo;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperationInjectionInfo;
 import com.llamalad7.mixinextras.sugar.impl.SugarPostProcessingExtension;
 import com.llamalad7.mixinextras.sugar.impl.SugarWrapperInjectionInfo;
-import com.llamalad7.mixinextras.sugar.impl.ref.LocalRefClassGenerator;
 import com.llamalad7.mixinextras.transformer.MixinTransformerExtension;
 import com.llamalad7.mixinextras.utils.MixinExtrasLogger;
 import com.llamalad7.mixinextras.utils.MixinInternals;
@@ -59,7 +58,6 @@ public class MixinExtrasServiceImpl implements MixinExtrasService {
     private final Set<String> lateOffersWarned = new HashSet<>();
 
     boolean initialized;
-    private boolean packagesChangedLate;
 
     @Override
     public int getVersion() {
@@ -116,9 +114,6 @@ public class MixinExtrasServiceImpl implements MixinExtrasService {
         warnIfInitialized("package " + packageName);
         offeredPackages.add(new Versioned<>(version, packageName));
         allPackages.add(new Versioned<>(version, packageName));
-        if (initialized) {
-            packagesChangedLate = true;
-        }
         ownInjectors.forEach(it -> registerInjector(it, packageName));
         for (Versioned<Class<? extends InjectionInfo>> gatedInjector : ownGatedInjectors) {
             if (version >= gatedInjector.version) {
@@ -187,6 +182,41 @@ public class MixinExtrasServiceImpl implements MixinExtrasService {
         return getAllClassNamesAtLeast(ourName, Integer.MIN_VALUE);
     }
 
+    /**
+     * The number of MixinExtras instances known so far including our own.
+     * Anything which has to cache a value derived from the whole set of instances, and cannot recompute it later,
+     * should key that cache on this so a newly registered instance gets a fresh one.
+     */
+    public int getPackageGeneration() {
+        return allPackages.size();
+    }
+
+    /**
+     * Translates a class belonging to any known MixinExtras instance into the equivalent name in our own package,
+     * or returns {@code null} if it belongs to none of them. Accepts a . format name.
+     * <p>Prefer this over snapshotting {@link #getAllClassNames} into a static map.
+     * As the known package set grows as instances register themselves, static maps will become stale.</p>
+     */
+    public String ourNameFor(String name) {
+        for (Versioned<String> knownPackage : allPackages) {
+            if (name.startsWith(knownPackage.value + '.')) {
+                return ownPackage + name.substring(knownPackage.value.length());
+            }
+        }
+        return null;
+    }
+
+    /**
+     * As {@link #ourNameFor(String)}, for a type descriptor.
+     */
+    public String ourDescriptorFor(String desc) {
+        if (desc.length() < 3 || desc.charAt(0) != 'L' || desc.charAt(desc.length() - 1) != ';') {
+            return null;
+        }
+        String ourName = ourNameFor(desc.substring(1, desc.length() - 1).replace('/', '.'));
+        return ourName == null ? null : 'L' + ourName.replace('.', '/') + ';';
+    }
+
     public Set<String> getAllClassNamesAtLeast(String ourName, MixinExtrasVersion minVersion) {
         return getAllClassNamesAtLeast(ourName, minVersion.getNumber());
     }
@@ -210,17 +240,6 @@ public class MixinExtrasServiceImpl implements MixinExtrasService {
     private void requireNotInitialized() {
         if (initialized) {
             throw new IllegalStateException("The MixinExtras service has already been selected and is initialized!");
-        }
-    }
-
-    /**
-     * Applies any package additions which arrived after we were initialized.
-     * @see LocalRefClassGenerator#onPackagesChanged()
-     */
-    void applyPendingPackageChanges() {
-        if (packagesChangedLate) {
-            packagesChangedLate = false;
-            LocalRefClassGenerator.onPackagesChanged();
         }
     }
 

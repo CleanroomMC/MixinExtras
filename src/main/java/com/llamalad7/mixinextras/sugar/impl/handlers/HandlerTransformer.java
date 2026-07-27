@@ -3,33 +3,27 @@ package com.llamalad7.mixinextras.sugar.impl.handlers;
 import com.llamalad7.mixinextras.service.MixinExtrasService;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.llamalad7.mixinextras.sugar.impl.SugarParameter;
-import org.apache.commons.lang3.tuple.Pair;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.MethodNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
  * Handler transformers belong to an individual sugar parameter and can transform {@link HandlerInfo}s.
  */
 public abstract class HandlerTransformer {
+    /**
+     * Keyed on our own descriptors only, see the note on
+     * {@link com.llamalad7.mixinextras.service.MixinExtrasServiceImpl#ourNameFor}.
+     */
     private static final Map<String, Class<? extends HandlerTransformer>> MAP = new HashMap<>();
 
     static {
-        List<Pair<Class<? extends Annotation>, Class<? extends HandlerTransformer>>> sugars = Arrays.asList(
-                Pair.of(Local.class, LocalHandlerTransformer.class)
-        );
-        for (Pair<Class<? extends Annotation>, Class<? extends HandlerTransformer>> pair : sugars) {
-            for (String name : MixinExtrasService.getInstance().getAllClassNames(pair.getLeft().getName())) {
-                MAP.put('L' + name.replace('.', '/') + ';', pair.getRight());
-            }
-        }
+        MAP.put(Type.getDescriptor(Local.class), LocalHandlerTransformer.class);
     }
 
     protected final IMixinInfo mixin;
@@ -57,7 +51,7 @@ public abstract class HandlerTransformer {
 
     public static HandlerTransformer create(IMixinInfo mixin, SugarParameter parameter) {
         try {
-            Class<? extends HandlerTransformer> clazz = MAP.get(parameter.sugar.desc);
+            Class<? extends HandlerTransformer> clazz = lookup(parameter.sugar.desc);
             if (clazz == null) {
                 return null;
             }
@@ -66,5 +60,14 @@ public abstract class HandlerTransformer {
         } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static Class<? extends HandlerTransformer> lookup(String desc) {
+        Class<? extends HandlerTransformer> ours = MAP.get(desc);
+        if (ours != null) {
+            return ours;
+        }
+        String ourDesc = MixinExtrasService.getInstance().ourDescriptorFor(desc);
+        return ourDesc == null ? null : MAP.get(ourDesc);
     }
 }

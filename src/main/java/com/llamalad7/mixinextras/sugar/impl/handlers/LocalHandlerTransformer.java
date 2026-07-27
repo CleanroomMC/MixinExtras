@@ -23,17 +23,17 @@ import java.util.Set;
  * If a wrapper sets the local, the inner handler must receive the most up-to-date value.
  */
 class LocalHandlerTransformer extends HandlerTransformer {
+    /**
+     * Ours and Mixin's own descriptors only. Another instance's {@link WrapOperation} is translated by
+     * {@link #isTargetInjector} on lookup, see the note on
+     * {@link com.llamalad7.mixinextras.service.MixinExtrasServiceImpl#ourNameFor}.
+     */
     private static final Set<String> TARGET_INJECTORS = new HashSet<>(Arrays.asList(
             Type.getDescriptor(ModifyConstant.class),
             Type.getDescriptor(Redirect.class),
-            Type.getDescriptor(FactoryRedirectWrapper.class)
+            Type.getDescriptor(FactoryRedirectWrapper.class),
+            Type.getDescriptor(WrapOperation.class)
     ));
-
-    static {
-        for (String name : MixinExtrasService.getInstance().getAllClassNames(WrapOperation.class.getName())) {
-            TARGET_INJECTORS.add('L' + name.replace('.', '/') + ';');
-        }
-    }
 
     LocalHandlerTransformer(IMixinInfo mixin, SugarParameter parameter) {
         super(mixin, parameter);
@@ -42,7 +42,15 @@ class LocalHandlerTransformer extends HandlerTransformer {
     @Override
     public boolean isRequired(MethodNode handler) {
         AnnotationNode annotation = InjectionInfo.getInjectorAnnotation(this.mixin, handler);
-        return annotation != null && TARGET_INJECTORS.contains(annotation.desc) && LocalRefUtils.getTargetType(parameter.type, parameter.genericType) == parameter.type;
+        return annotation != null && isTargetInjector(annotation.desc) && LocalRefUtils.getTargetType(parameter.type, parameter.genericType) == parameter.type;
+    }
+
+    private static boolean isTargetInjector(String desc) {
+        if (TARGET_INJECTORS.contains(desc)) {
+            return true;
+        }
+        String ourDesc = MixinExtrasService.getInstance().ourDescriptorFor(desc);
+        return ourDesc != null && TARGET_INJECTORS.contains(ourDesc);
     }
 
     @Override
