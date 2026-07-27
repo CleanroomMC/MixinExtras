@@ -9,6 +9,7 @@ import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethodInjectionInfo;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperationInjectionInfo;
 import com.llamalad7.mixinextras.sugar.impl.SugarPostProcessingExtension;
 import com.llamalad7.mixinextras.sugar.impl.SugarWrapperInjectionInfo;
+import com.llamalad7.mixinextras.sugar.impl.ref.LocalRefClassGenerator;
 import com.llamalad7.mixinextras.transformer.MixinTransformerExtension;
 import com.llamalad7.mixinextras.utils.MixinExtrasLogger;
 import com.llamalad7.mixinextras.utils.MixinInternals;
@@ -55,8 +56,10 @@ public class MixinExtrasServiceImpl implements MixinExtrasService {
             ExpressionInjectorWrapperInjectionInfo.class
     );
     private final List<String> registeredInjectors = new ArrayList<>();
+    private final Set<String> lateOffersWarned = new HashSet<>();
 
     boolean initialized;
+    private boolean packagesChangedLate;
 
     @Override
     public int getVersion() {
@@ -84,12 +87,15 @@ public class MixinExtrasServiceImpl implements MixinExtrasService {
 
     @Override
     public void concedeTo(Object newerService, boolean wasActive) {
-        requireNotInitialized();
         LOGGER.debug("{} is conceding to {}", this, newerService);
         MixinExtrasService newService = MixinExtrasService.getFrom(newerService);
 
         if (wasActive) {
             deInitialize();
+        }
+        if (initialized) {
+            LOGGER.warn("{} is conceding to {} after it was already initialized.", this, newerService);
+            initialized = false;
         }
 
         offeredPackages.forEach(packageName -> newService.offerPackage(packageName.version, packageName.value));
@@ -107,9 +113,12 @@ public class MixinExtrasServiceImpl implements MixinExtrasService {
 
     @Override
     public void offerPackage(int version, String packageName) {
-        requireNotInitialized();
+        warnIfInitialized("package " + packageName);
         offeredPackages.add(new Versioned<>(version, packageName));
         allPackages.add(new Versioned<>(version, packageName));
+        if (initialized) {
+            packagesChangedLate = true;
+        }
         ownInjectors.forEach(it -> registerInjector(it, packageName));
         for (Versioned<Class<? extends InjectionInfo>> gatedInjector : ownGatedInjectors) {
             if (version >= gatedInjector.version) {
@@ -120,19 +129,19 @@ public class MixinExtrasServiceImpl implements MixinExtrasService {
 
     @Override
     public void offerExtension(int version, IExtension extension) {
-        requireNotInitialized();
+        warnIfInitialized("extension " + extension.getClass().getName());
         offeredExtensions.add(new Versioned<>(version, extension));
     }
 
     @Override
     public void offerInjector(int version, Class<? extends InjectionInfo> injector) {
-        requireNotInitialized();
+        warnIfInitialized("injector " + injector.getName());
         offeredInjectors.add(new Versioned<>(version, injector));
     }
 
     @Override
     public void offerInjectionPoint(int version, Class<? extends InjectionPoint> point) {
-        requireNotInitialized();
+        warnIfInitialized("injection point " + point.getName());
         offeredPoints.add(new Versioned<>(version, point));
     }
 
@@ -201,6 +210,32 @@ public class MixinExtrasServiceImpl implements MixinExtrasService {
     private void requireNotInitialized() {
         if (initialized) {
             throw new IllegalStateException("The MixinExtras service has already been selected and is initialized!");
+        }
+    }
+
+    /**
+     * Applies any package additions which arrived after we were initialized.
+     * @see LocalRefClassGenerator#onPackagesChanged()
+     */
+    void applyPendingPackageChanges() {
+        if (packagesChangedLate) {
+            packagesChangedLate = false;
+            LocalRefClassGenerator.onPackagesChanged();
+        }
+    }
+
+    /**
+     * An older MixinExtras instance may bootstrap after we have already begun applying mixins.
+     * e.g. if it is initialized from a mixin plugin's {@code onLoad}.
+     */
+    private void warnIfInitialized(String what) {
+        if (!initialized) {
+            return;
+        }
+        if (lateOffersWarned.add(what)) {
+            LOGGER.warn("Accepting {} offered to {} after initialization." +
+                            "The MixinExtras instance which offered it bootstrapped too late" +
+                            "and anything already transformed will not be aware of it.", what, this);
         }
     }
 

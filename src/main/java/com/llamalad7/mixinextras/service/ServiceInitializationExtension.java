@@ -6,10 +6,10 @@ import org.spongepowered.asm.mixin.transformer.ext.IExtension;
 import org.spongepowered.asm.mixin.transformer.ext.ITargetClassContext;
 
 class ServiceInitializationExtension implements IExtension {
-    private final MixinExtrasService service;
+    private final MixinExtrasServiceImpl service;
     private boolean initialized;
 
-    public ServiceInitializationExtension(MixinExtrasService service) {
+    public ServiceInitializationExtension(MixinExtrasServiceImpl service) {
         this.service = service;
     }
 
@@ -24,6 +24,7 @@ class ServiceInitializationExtension implements IExtension {
             service.initialize();
             initialized = true;
         }
+        service.applyPendingPackageChanges();
     }
 
     @Override

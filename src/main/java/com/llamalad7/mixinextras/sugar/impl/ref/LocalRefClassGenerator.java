@@ -25,6 +25,19 @@ import java.util.function.Consumer;
 public class LocalRefClassGenerator {
     private static final String IMPL_PACKAGE = StringUtils.substringBeforeLast(LocalRefClassGenerator.class.getName(), ".").replace('.', '/') + "/generated";
     private static final Map<Class<?>, String> interfaceToImpl = new HashMap<>();
+    private static int generation = 0;
+
+    /**
+     * Called when a new MixinExtras package is registered after we may have already generated some impls.
+     * Those impls cannot implement the new instance's interfaces.
+     * Previously generated impls remain valid for the handlers which already use them.
+     */
+    public static void onPackagesChanged() {
+        if (!interfaceToImpl.isEmpty()) {
+            interfaceToImpl.clear();
+            generation++;
+        }
+    }
 
     public static String getForType(Type type) {
         Class<?> refInterface = LocalRefUtils.getInterfaceFor(type);
@@ -32,7 +45,8 @@ public class LocalRefClassGenerator {
         if (owner != null) {
             return owner;
         }
-        owner = IMPL_PACKAGE + '/' + StringUtils.substringAfterLast(refInterface.getName(), ".") + "Impl";
+        owner = IMPL_PACKAGE + '/' + StringUtils.substringAfterLast(refInterface.getName(), ".") + "Impl"
+                + (generation == 0 ? "" : "$" + generation);
         String desc = type.getDescriptor();
         String innerDesc = desc.length() == 1 ? desc : Type.getDescriptor(Object.class);
         interfaceToImpl.put(refInterface, owner);
