@@ -1,5 +1,6 @@
 import org.gradle.api.Project
 import org.gradle.api.file.Directory
+import org.gradle.authentication.http.BasicAuthentication
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
@@ -21,10 +22,23 @@ fun Project.configurePublishing(artifactName: String, setup: MavenPublication.()
                 name = "Staging"
                 url = uri(rootProject.layout.buildDirectory.dir("staging-deploy"))
             }
+            maven {
+                name = "CleanroomMC"
+                url = uri("https://maven.cleanroommc.com/releases")
+                credentials {
+                    username = properties["cleanroomMavenUser"] as? String
+                        ?: System.getenv("MAVEN_USER")
+                    password = properties["cleanroomMavenPassword"] as? String
+                        ?: System.getenv("MAVEN_PASSWORD")
+                }
+                authentication {
+                    create<BasicAuthentication>("basic")
+                }
+            }
         }
         publications {
             create<MavenPublication>("maven") {
-                groupId = "io.github.llamalad7"
+                groupId = "com.cleanroommc"
                 artifactId = "mixinextras-$artifactName"
 
                 setup()
@@ -32,7 +46,7 @@ fun Project.configurePublishing(artifactName: String, setup: MavenPublication.()
                 pom {
                     name = "MixinExtras"
                     description = "Companion library to Mixin with lots of features to improve the compatibility and concision of your mixins!"
-                    url = "https://github.com/LlamaLad7/MixinExtras"
+                    url = "https://github.com/CleanroomMC/MixinExtras"
                     licenses {
                         license {
                             name = "MIT License"
@@ -44,11 +58,15 @@ fun Project.configurePublishing(artifactName: String, setup: MavenPublication.()
                             name = "LlamaLad7"
                             url = "https://github.com/LlamaLad7"
                         }
+                        developer {
+                            name = "Rongmario"
+                            url = "https://github.com/Rongmario"
+                        }
                     }
                     scm {
-                        connection = "scm:git:git://github.com/LlamaLad7/MixinExtras.git"
-                        developerConnection = "scm:git:git://github.com/LlamaLad7/MixinExtras.git"
-                        url = "https://github.com/LlamaLad7/MixinExtras/tree/master"
+                        connection = "scm:git:git://github.com/CleanroomMC/MixinExtras.git"
+                        developerConnection = "scm:git:git://github.com/CleanroomMC/MixinExtras.git"
+                        url = "https://github.com/CleanroomMC/MixinExtras/tree/master"
                     }
                     withXml {
                         val node = asNode().appendNode("dependencies")

@@ -8,14 +8,14 @@ buildscript {
 
 plugins {
     `java-library`
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("com.gradleup.shadow") version "9.2.2"
 }
 
 allprojects {
     apply(plugin = "java-library")
 
-    group = "com.llamalad7"
-    version = "0.5.4"
+    group = "com.cleanroommc"
+    version = "0.5.5"
 
     repositories {
         mavenCentral()
@@ -128,3 +128,9 @@ val publishWithExpressions by registerUploadTask(
 val publishExpressions by registerUploadTask(
     expressions,
 )
+
+val publishCommonToCleanroom by tasks.registering {
+    group = "publishing"
+    description = "Publishes mixinextras-common to the CleanroomMC Maven."
+    dependsOn(":platform:common:publishMavenPublicationToCleanroomMCRepository")
+}
