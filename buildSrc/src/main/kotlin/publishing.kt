@@ -24,7 +24,7 @@ fun Project.configurePublishing(artifactName: String, setup: MavenPublication.()
             }
             maven {
                 name = "CleanroomMC"
-                url = uri("https://maven.cleanroommc.com/releases")
+                url = uri("https://maven.cleanroommc.com")
                 credentials {
                     username = properties["cleanroomMavenUser"] as? String
                         ?: System.getenv("MAVEN_USER")
