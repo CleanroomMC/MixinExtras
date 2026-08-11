@@ -17,6 +17,6 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.cleanroommc:mixinextras-common:0.5.5
+    implementation 'com.cleanroommc:mixinextras-common:0.5.5'
 }
 ```
