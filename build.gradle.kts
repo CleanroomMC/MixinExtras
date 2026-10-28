@@ -36,6 +36,14 @@ allprojects {
     tasks.withType<Jar> {
         dependsOn(":expressions:generateGrammarSource")
     }
+
+    configurations {
+        for (config in listOf(apiElements, runtimeElements)) {
+            config {
+                outgoing.variants.removeIf { it.name == "classes" }
+            }
+        }
+    }
 }
 
 val library by configurations.creating {
